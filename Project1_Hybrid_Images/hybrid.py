@@ -3,67 +3,68 @@ import cv2
 import numpy as np
 import os
 
+def mean_center_sequence(n : int) -> np.ndarray:
+    return (np.arange(n, dtype=np.float32) - (n - 1) / 2.0)
+
 def gaussian_blur_kernel_2d(sigma, height, width):
-    '''주어진 sigma와 (height x width) 차원에 해당하는 가우시안 블러 커널을
-    반환합니다. width와 height는 서로 다를 수 있습니다.
+    mcsY = mean_center_sequence(height)
+    mcsY.shape = (1, height)
+    mcsY = mcsY.T
 
-    입력(Input):
-        sigma:  가우시안 블러의 반경(정도)을 제어하는 파라미터.
-                본 과제에서는 높이와 너비 방향으로 대칭인 원형 가우시안(등방성)을 가정합니다.
-        width:  커널의 너비.
-        height: 커널의 높이.
+    mcsX = mean_center_sequence(width)
+    mcsX.shape = (1, width)
 
-    출력(Output):
-        (height x width) 크기의 커널을 반환합니다. 이 커널로 이미지를 컨볼브하면
-        가우시안 블러가 적용된 결과가 나옵니다.
-    '''
+    gY = np.exp(-(mcsY*mcsY) / (2.0 * sigma*sigma))
+    gY /= gY.sum()
+    gX = np.exp(-(mcsX*mcsX) / (2.0 * sigma*sigma))
+    gX /= gX.sum()
 
-def cross_correlation_2d(img, kernel):
-    '''주어진 커널(크기 m x n )을 사용하여 입력 이미지와의
-    2D 상관(cross-correlation)을 계산합니다. 출력은 입력 이미지와 동일한 크기를
-    가져야 하며, 이미지 경계 밖의 픽셀은 0이라고 가정합니다. 입력이 RGB 이미지인
-    경우, 각 채널에 대해 커널을 별도로 적용해야 합니다.
+    return np.outer(gY, gX)  # Return the calculated Gaussian filter
 
-    입력(Inputs):
-        img:    NumPy 배열 형태의 RGB 이미지(height x width x 3) 또는
-                그레이스케일 이미지(height x width).
-        kernel: 2차원 NumPy 배열(m x n). m과 n은 모두 홀수(서로 같을 필요는 없음).
-    '''
-    
-    '''출력(Output):
-        입력 이미지와 동일한 크기(같은 너비, 높이, 채널 수)의 이미지를 반환합니다.
-    '''
+'''
+픽셀의 위치와 이미지의 shape를 비교하여 bound인지 아닌지 리턴
+'''
+def check_is_bound(shape : tuple, pixel_pos : tuple) -> bool:
+    if pixel_pos[1] < 0 or pixel_pos[0] < 0:
+        return False
+    if pixel_pos[1] >= shape[1] or pixel_pos[0] >= shape[0]:
+        return False
+    return True
 
-def convolve_2d(img, kernel):
-    '''cross_correlation_2d()를 사용하여 2D 컨볼루션을 수행합니다.
+# ✅ numpy로 최적화 하기
+def cross_correlation_2d(img : np.ndarray , kernel : np.ndarray):
+    # print(img.shape) # 쉐이프 검사 파이썬도 y, x 구나.
+    # print(kernel.shape) # 쉐이프 검사 파이썬도 y, x 구나.
+    image_height, image_width = img.shape
+    kernel_height, kernel_width = kernel.shape
+    kernel_y_mean, kernel_x_mean = kernel_height // 2, kernel_width // 2
+    res = np.zeros(img.shape)
+    comp_res = np.zeros(img.shape)
 
-    입력(Inputs):
-        img:    NumPy 배열 형태의 RGB 이미지(height x width x 3) 또는
-                그레이스케일 이미지(height x width).
-        kernel: 2차원 NumPy 배열(m x n). m과 n은 모두 홀수(서로 같을 필요는 없음).
+    # print(kernel_y_mean, kernel_x_mean) # 평균 검사
+    for i in range(image_height):
+        for j in range(image_width):
+            for u in range(kernel_height):
+                for v in range(kernel_width):
+                    # print(i, j, (u - kernel_y_mean), (v - kernel_x_mean)) # 픽셀과 오프셋
+                    offseted_pixel = ((i + u - kernel_y_mean), (j + v - kernel_x_mean))
+                    if check_is_bound(img.shape, (offseted_pixel[1], offseted_pixel[0])):
+                        try :
+                            res[i][j] += kernel[u][v] * img[offseted_pixel[1]][offseted_pixel[0]]
+                        except :
+                            print("cross_correlation_2d error")
 
-    출력(Output):
-        입력 이미지와 동일한 크기(같은 너비, 높이, 채널 수)의 이미지를 반환합니다.
-    '''
+    return res
 
+def convolve_2d(img : np.ndarray , kernel : np.ndarray):
+    return cross_correlation_2d(img, np.flip(kernel))
 
 def low_pass(img, sigma, size):
-    '''주어진 sigma와 정사각형 커널 크기(size)를 사용해 저역통과(low-pass)
-    필터가 적용된 것처럼 이미지를 필터링합니다. 저역통과 필터는 이미지의
-    고주파(세밀한 디테일) 성분을 억제합니다.
-
-    출력(Output):
-        입력 이미지와 동일한 크기(같은 너비, 높이, 채널 수)의 이미지를 반환합니다.
-    '''
+    return convolve_2d(img, gaussian_blur_kernel_2d(sigma, size, size))
 
 def high_pass(img, sigma, size):
-    '''주어진 sigma와 정사각형 커널 크기(size)를 사용해 고역통과(high-pass)
-    필터가 적용된 것처럼 이미지를 필터링합니다. 고역통과 필터는 이미지의
-    저주파(거친 형태) 성분을 억제합니다.
-
-    출력(Output):
-        입력 이미지와 동일한 크기(같은 너비, 높이, 채널 수)의 이미지를 반환합니다.
-    '''
+    mask = low_pass(img, sigma, size)
+    return (img * 1.5) - (mask * 0.5)
 
 def create_hybrid_image(img1, img2, sigma1, size1, high_low1, sigma2, size2,
         high_low2, mixin_ratio, scale_factor):
@@ -90,3 +91,27 @@ def create_hybrid_image(img1, img2, sigma1, size1, high_low1, sigma2, size2,
     img2 *= mixin_ratio
     hybrid_img = (img1 + img2) * scale_factor
     return (hybrid_img * 255).clip(0, 255).astype(np.uint8)
+
+#gaussian_blur_kernel_2d(1, 3, 7)
+# imp = np.zeros((7, 7), np.float32)
+# imp[7 // 2, 7 // 2] = 1.0
+# print("imp")
+# print(imp)
+# kernel = np.array([
+#     [0, 1.5, 0],
+#     [8.5, 1, 2.5],
+#     [7.5, 1, 3.5],
+#     [6.5, 1, 4.5],
+#     [0, 5.5, 0]
+# ])
+# print("kernel")
+# print(kernel)
+#
+# # print(cross_correlation_2d(imp, kernel))
+# # print(scipy.signal.correlate(imp, kernel, mode='same'))
+# #
+# # print(convolve_2d(imp, kernel))
+# # print(scipy.signal.convolve2d(imp, kernel, mode='same'))
+#
+# print(convolve_2d(imp, gaussian_blur_kernel_2d(1, 7, 7)).round(3))
+# print(cv2.GaussianBlur(imp, (7, 7), 1, borderType=cv2.BORDER_CONSTANT).round(3))
