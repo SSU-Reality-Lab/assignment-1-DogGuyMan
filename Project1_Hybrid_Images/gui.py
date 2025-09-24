@@ -2,19 +2,22 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 import cv2
-import hybrid # 'hybrid.py' 파일이 같은 폴더에 있어야 합니다.
+import hybrid  # 'hybrid.py' 파일이 같은 폴더에 있어야 합니다.
 import json
 import numpy as np
 import os
 import argparse
 import threading
 
+
 def error(message):
     """오류 메시지 박스를 띄우는 함수"""
     messagebox.showerror("Error", message)
 
+
 class BaseFrame(tk.Frame):
     """모든 프레임의 기반이 되는 클래스"""
+
     def __init__(self, parent, root, *args, **kwargs):
         tk.Frame.__init__(self, parent, *args, **kwargs)
         self.root = root
@@ -34,8 +37,10 @@ class BaseFrame(tk.Frame):
             return img_name, cv2.imread(img_name)
         return None, None
 
+
 class ImageWidget(tk.Label):
     """OpenCV 이미지를 표시하는 기본 위젯"""
+
     def __init__(self, parent):
         tk.Label.__init__(self, parent)
         self.image = None
@@ -43,21 +48,21 @@ class ImageWidget(tk.Label):
     def draw_cv_image(self, cv_image):
         if cv_image is None:
             return
-        
+
         self.image = cv_image
         img_rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
         pil_img = Image.fromarray(img_rgb)
         tk_photo = ImageTk.PhotoImage(image=pil_img)
-        
+
         self.config(image=tk_photo)
         self.image_for_tk = tk_photo
 
     def has_image(self):
         return self.image is not None
-        
+
     def get_image(self):
         return self.image
-    
+
     def write_to_file(self, f, grayscale):
         if self.image is not None:
             if grayscale:
@@ -65,8 +70,10 @@ class ImageWidget(tk.Label):
             else:
                 cv2.imwrite(f, self.image)
 
+
 class ClickableImageWidget(ImageWidget):
     """클릭 좌표를 저장하는 기능이 추가된 이미지 위젯"""
+
     def __init__(self, parent):
         super().__init__(parent)
         self.clicked_points = []
@@ -95,7 +102,7 @@ class ClickableImageWidget(ImageWidget):
 class ImageAlignmentFrame(BaseFrame):
     def __init__(self, parent, root, template_file=None):
         super().__init__(parent, root)
-        
+
         tk.Button(self, text='Load First Image', command=self.load_first).grid(row=0, column=0, sticky="we")
         tk.Button(self, text='Load Second Image', command=self.load_second).grid(row=0, column=1, sticky="we")
         tk.Button(self, text='Undo', command=self.undo).grid(row=0, column=2, sticky="we")
@@ -108,7 +115,7 @@ class ImageAlignmentFrame(BaseFrame):
         self.left_image_widget.grid(row=2, column=0, columnspan=2, sticky="nsew")
         self.right_image_widget = ClickableImageWidget(self)
         self.right_image_widget.grid(row=2, column=3, columnspan=2, sticky="nsew")
-        
+
         self.left_image_name = None
         self.right_image_name = None
         self.left_redo_queue = []
@@ -122,8 +129,10 @@ class ImageAlignmentFrame(BaseFrame):
             def load_template_and_compute():
                 self.load_corr(self.template_file)
                 self.process_compute()
+
             def load_template_local():
                 self.after(0, load_template_and_compute)
+
             threading.Thread(target=load_template_local).start()
 
     def load_first(self, img_name=None):
@@ -184,12 +193,12 @@ class ImageAlignmentFrame(BaseFrame):
             return None
         left = self.left_image_widget.get_clicked_points_in_image_coordinates()
         right = self.right_image_widget.get_clicked_points_in_image_coordinates()
-        
+
         num_points = min(len(left), len(right))
         if num_points != 3:
             error('Please click on at exactly three corresponding points.')
             return None
-            
+
         left = np.array([[x, y] for y, x in left[:num_points]], np.float32)
         right = np.array([[x, y] for y, x in right[:num_points]], np.float32)
         return cv2.getAffineTransform(right, left)
@@ -202,12 +211,13 @@ class ImageAlignmentFrame(BaseFrame):
         if mapping is not None and self.image_receiver is not None:
             self.image_receiver(self.left_image_widget.get_image(), self.right_image_widget.get_image(), mapping)
 
+
 class HybridImageFrame(BaseFrame):
     def __init__(self, parent, root, receiver, tab_num, config_file=None):
         super().__init__(parent, root)
 
         # --- 1. 전체 UI 컨트롤 복원 및 자동 업데이트 제거 ---
-        
+
         # Left Image Controls
         tk.Label(self, text='Left Image Sigma:').grid(row=0, column=0, sticky='e', padx=5, pady=2)
         self.left_sigma_slider = tk.Scale(self, from_=0.1, to=20, resolution=0.1, orient='horizontal')
@@ -220,8 +230,12 @@ class HybridImageFrame(BaseFrame):
         self.left_size_slider.grid(row=1, column=1, sticky='we')
 
         self.left_high_low_indicator = tk.StringVar(value='low')
-        tk.Radiobutton(self, text='High Pass', variable=self.left_high_low_indicator, value='high').grid(row=2, column=0, sticky='w', padx=20)
-        tk.Radiobutton(self, text='Low Pass', variable=self.left_high_low_indicator, value='low').grid(row=2, column=1, sticky='w')
+        tk.Radiobutton(self, text='High Pass', variable=self.left_high_low_indicator, value='high').grid(row=2,
+                                                                                                         column=0,
+                                                                                                         sticky='w',
+                                                                                                         padx=20)
+        tk.Radiobutton(self, text='Low Pass', variable=self.left_high_low_indicator, value='low').grid(row=2, column=1,
+                                                                                                       sticky='w')
 
         # Right Image Controls
         tk.Label(self, text='Right Image Sigma:').grid(row=0, column=2, sticky='e', padx=5, pady=2)
@@ -235,11 +249,16 @@ class HybridImageFrame(BaseFrame):
         self.right_size_slider.grid(row=1, column=3, sticky='we', padx=(0, 10))
 
         self.right_high_low_indicator = tk.StringVar(value='high')
-        tk.Radiobutton(self, text='High Pass', variable=self.right_high_low_indicator, value='high').grid(row=2, column=2, sticky='w', padx=20)
-        tk.Radiobutton(self, text='Low Pass', variable=self.right_high_low_indicator, value='low').grid(row=2, column=3, sticky='w')
+        tk.Radiobutton(self, text='High Pass', variable=self.right_high_low_indicator, value='high').grid(row=2,
+                                                                                                          column=2,
+                                                                                                          sticky='w',
+                                                                                                          padx=20)
+        tk.Radiobutton(self, text='Low Pass', variable=self.right_high_low_indicator, value='low').grid(row=2, column=3,
+                                                                                                        sticky='w')
 
         # Mix-in and Scale Controls
-        tk.Label(self, text='Mix-in Ratio (0=left, 1=right):').grid(row=3, column=0, columnspan=2, sticky='e', padx=5, pady=2)
+        tk.Label(self, text='Mix-in Ratio (0=left, 1=right):').grid(row=3, column=0, columnspan=2, sticky='e', padx=5,
+                                                                    pady=2)
         self.mixin_slider = tk.Scale(self, from_=0.0, to=1.0, resolution=0.05, orient='horizontal')
         self.mixin_slider.set(0.5)
         self.mixin_slider.grid(row=3, column=2, columnspan=2, sticky='we', padx=(0, 10))
@@ -249,14 +268,20 @@ class HybridImageFrame(BaseFrame):
         self.scale_slider.set(2.0)
         self.scale_slider.grid(row=4, column=2, columnspan=2, sticky='we', padx=(0, 10))
 
+        # [20192460 홍상준] Sharpening Alpha Controls
+        tk.Label(self, text='Sharpening Weight:').grid(row=5, column=0, columnspan=2, sticky='e', padx=5, pady=2)
+        self.weight_slider = tk.Scale(self, from_=0, to=1.0, resolution=0.05, orient='horizontal')
+        self.weight_slider.set(0.5)
+        self.weight_slider.grid(row=5, column=2, columnspan=2, sticky='we', padx=(0, 10))
+
         # --- 2. 'Apply' 버튼 추가 ---
         self.apply_button = tk.Button(self, text="Apply Changes", command=self.update_hybrid)
-        self.apply_button.grid(row=5, column=0, columnspan=4, sticky='we', padx=10, pady=10)
+        self.apply_button.grid(row=6, column=0, columnspan=4, sticky='we', padx=10, pady=10)
 
         # Image Display Widget
         self.image_widget = ImageWidget(self)
-        self.image_widget.grid(row=6, column=0, columnspan=4, sticky="nsew")
-        
+        self.image_widget.grid(row=7, column=0, columnspan=4, sticky="nsew")
+
         # Grid configuration
         self.grid_rowconfigure(6, weight=1)
         self.grid_columnconfigure(1, weight=1)
@@ -266,8 +291,8 @@ class HybridImageFrame(BaseFrame):
         self.left_image = None
         self.right_image = None
         self.tab_num = tab_num
-        self.parent = parent # ttk.Notebook parent
-        
+        self.parent = parent  # ttk.Notebook parent
+
         receiver.set_receiver(self.set_images_and_mapping)
 
     def set_images_and_mapping(self, img1, img2, mapping):
@@ -277,7 +302,7 @@ class HybridImageFrame(BaseFrame):
         if self.tab_num >= 0:
             self.parent.tab(self.tab_num, state="normal")
             self.parent.select(self.tab_num)
-        self.update_hybrid() # 최초 한 번은 바로 적용
+        self.update_hybrid()  # 최초 한 번은 바로 적용
 
     def update_hybrid(self, *args):
         if self.left_image is not None and self.right_image is not None:
@@ -289,40 +314,43 @@ class HybridImageFrame(BaseFrame):
             sigma2 = self.right_sigma_slider.get()
             size2 = int(self.right_size_slider.get())
             mode2 = self.right_high_low_indicator.get()
-            
+
             mixin_ratio = self.mixin_slider.get()
             scale_factor = self.scale_slider.get()
+            sharpness_weight = self.weight_slider.get()
 
             # 커널 사이즈는 항상 홀수여야 함
             if size1 % 2 == 0: size1 += 1
             if size2 % 2 == 0: size2 += 1
 
             print(f"Updating with: s1={sigma1}, k1={size1}, m1='{mode1}' | s2={sigma2}, k2={size2}, m2='{mode2}'")
-            
+
             hybrid_image = hybrid.create_hybrid_image(
                 self.left_image, self.right_image,
                 sigma1, size1, mode1,
                 sigma2, size2, mode2,
-                mixin_ratio, scale_factor)
+                mixin_ratio, scale_factor, sharpness_weight)
             self.image_widget.draw_cv_image(hybrid_image)
+
 
 class HybridImagesUIFrame(tk.Frame):
     def __init__(self, parent, root, template_file=None, config_file=None):
         super().__init__(parent)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
-        
+
         notebook = ttk.Notebook(self)
         notebook.grid(row=0, sticky="nsew")
-        
+
         alignment_frame = ImageAlignmentFrame(notebook, root, template_file)
         notebook.add(alignment_frame, text='Align Images')
-        
+
         hybrid_frame = HybridImageFrame(notebook, root, alignment_frame, 1, config_file)
         notebook.add(hybrid_frame, text='View Hybrid')
         notebook.tab(1, state="disabled")
-        
+
         alignment_frame.process_template()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Run the Hybrid Images GUI.')
@@ -332,7 +360,7 @@ if __name__ == '__main__':
 
     root = tk.Tk()
     root.title('Hybrid Images Project')
-    
+
     # Adjust window size to be reasonable
     w = int(root.winfo_screenwidth() * 0.8)
     h = int(root.winfo_screenheight() * 0.8)
@@ -340,8 +368,8 @@ if __name__ == '__main__':
 
     root.grid_columnconfigure(0, weight=1)
     root.grid_rowconfigure(0, weight=1)
-    
+
     app = HybridImagesUIFrame(root, root, args.template, args.config)
     app.grid(row=0, sticky="nsew")
-    
+
     root.mainloop()
