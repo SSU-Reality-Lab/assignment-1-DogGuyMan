@@ -8,18 +8,15 @@ def mean_center_sequence(n : int) -> np.ndarray:
 
 def gaussian_blur_kernel_2d(sigma, height, width):
     mcsY = mean_center_sequence(height)
-    mcsY.shape = (1, height)
-    mcsY = mcsY.T
-
     mcsX = mean_center_sequence(width)
-    mcsX.shape = (1, width)
-
-    gY = np.exp(-(mcsY*mcsY) / (2.0 * sigma*sigma))
-    gY /= gY.sum()
-    gX = np.exp(-(mcsX*mcsX) / (2.0 * sigma*sigma))
-    gX /= gX.sum()
-
-    return np.outer(gY, gX)  # Return the calculated Gaussian filter
+    kernel = np.zeros((height, width), np.float32)
+    for y in range(height):
+        for x in range(width):
+            ySq = mcsY[y]*mcsY[y]
+            xSq = mcsY[x]*mcsY[x]
+            kernel[y, x] = 1/(2*np.pi*(sigma*sigma)) * np.exp(-(xSq + ySq)/(2*(sigma*sigma)))
+    kernel /= np.sum(kernel)
+    return kernel
 
 def cross_correlation_2d(img : np.ndarray, kernel : np.ndarray):
     paddedH, paddedW = kernel.shape[0] // 2, kernel.shape[1] // 2
