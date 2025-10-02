@@ -1,0 +1,32 @@
+{
+  "first_image": "/Users/escatrgot/Develop Projects/PythonProject/Assignments/assignment-1-DogGuyMan/Project1_Hybrid_Images/assets/left.jpg",
+  "second_image": "/Users/escatrgot/Develop Projects/PythonProject/Assignments/assignment-1-DogGuyMan/Project1_Hybrid_Images/assets/right.jpg",
+  "first_image_points": [
+    [
+      134,
+      327
+    ],
+    [
+      243,
+      319
+    ],
+    [
+      198,
+      458
+    ]
+  ],
+  "second_image_points": [
+    [
+      165,
+      320
+    ],
+    [
+      274,
+      301
+    ],
+    [
+      235,
+      458
+    ]
+  ]
+}
